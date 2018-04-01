@@ -1,0 +1,112 @@
+Sub UpdateChart()
+'define array
+Dim pos(1 To 11) As Integer
+Dim ard As Variant
+ard = Array("Container 1", "Container 2", "Container 3", "Container 4", "Container 5", "Container 6", "Container 7", "Container 8", "Container 9", "Fridge", "Ambient")
+ReDim Preserve ard(1 To 11)
+'define variable for new Excel file
+Dim wb As Workbook
+'Open new Excel file
+Set wb = Workbooks.Add
+'Copy Sheet "Simple Data" to new Excel file
+ThisWorkbook.Sheets(1).Copy Before:=wb.Sheets(1)
+'Turn off Alerts (important for deleting unnecessary sheets)
+Application.DisplayAlerts = False
+'Delete unnecessary sheets from newly created file (Sheet1, Sheet2, Sheet3)
+Do While wb.Sheets.Count > 1
+wb.Sheets(wb.Sheets.Count).Delete
+Loop
+'Copy header to each of Container sheets
+For sh = 1 To 11
+Sheets.Add(After:=Sheets(Sheets.Count)).Name = ard(sh)
+Sheets(ard(sh)).Range("A1:H1").Value = Sheets(1).Range("A1:H1").Value
+Next sh
+'Go back to sheet "Simple Data"
+Sheets(1).Activate
+'Define array of 8 counters for each of 8 sheets - ***probably not needed, because it always receives data from Arduinos in order, one counter would probably be enough***
+For j = 1 To 11
+pos(j) = 2
+Next j
+'Find last row with data (last non-empty row)
+LastRow = Cells(Rows.Count, "A").End(xlUp).row
+
+Set Rng = Range("E2:F" & LastRow)
+For Each c In Rng
+If UCase(Trim(c.Value)) = "NAN" Then
+Rows(c.row).EntireRow.Delete
+LastRow = LastRow - 1
+End If
+Next
+
+'If any kind of error, skip it and continue macro (e.g. In case that some row is empty, macro would stop without this line)
+On Error Resume Next
+'Start loop for each row
+For i = 2 To LastRow
+'Check which container are we reading (get data from column C)
+s = ard(Cells(i, 3))
+'Copy values of cells from A:G columns in first sheet to sheet named by proper container
+Sheets(s).Range("A" & pos(Cells(i, 3)) & ":G" & pos(Cells(i, 3))).Value = Range("A" & i & ":G" & i).Value
+'Increase counter
+pos(Cells(i, 3)) = pos(Cells(i, 3)) + 1
+Next i
+'Copy format of each column in first sheet, which we will paste to each of 8 sheets (format only)
+Columns("A:G").Select
+Selection.Copy
+'Start loop and go to each of 8 sheets
+For sh = 1 To 11
+Sheets(ard(sh)).Select
+'Paste copied format
+Selection.PasteSpecial Paste:=xlPasteFormats, Operation:=xlNone
+'Find last row for each sheet
+LRsh = Cells(Rows.Count, "A").End(xlUp).row
+'Create 3 graphs of proper type, with values for Y and X and change the color of line
+    Range("I2").Select
+    ActiveSheet.ChartObjects.Add(ActiveCell.Left, ActiveCell.Top, 800, 216).Select
+    With ActiveChart
+        .ChartType = xlLine
+        .SeriesCollection.NewSeries
+        .SeriesCollection(1).Name = "='" & ard(sh) & "'!D1"
+        .SeriesCollection(1).Values = "='" & ard(sh) & "'!D2:D" & LRsh
+        .SeriesCollection(1).XValues = "='" & ard(sh) & "'!A2:A" & LRsh
+        .SeriesCollection(1).Format.Line.ForeColor.RGB = RGB(0, 176, 80)
+        .ChartTitle.Text = "O2 - " & ard(sh)
+    End With
+    Range("I17").Select
+    ActiveSheet.ChartObjects.Add(ActiveCell.Left, ActiveCell.Top, 800, 216).Select
+    With ActiveChart
+        .ChartType = xlLine
+        .SeriesCollection.NewSeries
+        .SeriesCollection(1).Name = "='" & ard(sh) & "'!E1"
+        .SeriesCollection(1).Values = "='" & ard(sh) & "'!E2:E" & LRsh
+        .SeriesCollection(1).XValues = "='" & ard(sh) & "'!A2:A" & LRsh
+        .SeriesCollection(1).Format.Line.ForeColor.RGB = RGB(255, 0, 0)
+        .ChartTitle.Text = "TEMP - " & ard(sh)
+    End With
+    Range("I32").Select
+    ActiveSheet.ChartObjects.Add(ActiveCell.Left, ActiveCell.Top, 800, 216).Select
+    With ActiveChart
+        .ChartType = xlLine
+        .SeriesCollection.NewSeries
+        .SeriesCollection(1).Name = "='" & ard(sh) & "'!F1"
+        .SeriesCollection(1).Values = "='" & ard(sh) & "'!F2:F" & LRsh
+        .SeriesCollection(1).XValues = "='" & ard(sh) & "'!A2:A" & LRsh
+        .SeriesCollection(1).Format.Line.ForeColor.RGB = RGB(0, 0, 255)
+        .ChartTitle.Text = "HUMIDITY - " & ard(sh)
+    End With
+Cells(1, 1).Select
+Next sh
+'Go to first sheet again
+Sheets(1).Activate
+'Delete button for macro - this file is saved as .xlsx, no macro in it. I decided to delete button not to make any confusion.
+ActiveSheet.Shapes.Range(Array("Button 1")).Delete
+'Go to the beginning of the spreadsheet
+Cells(1, 1).Select
+'Save file to specified folder as .xlsx
+wb.SaveAs Filename:="C:\test\" & Format(Now(), "ddmmyyyy") & ".xlsx", FileFormat:=xlOpenXMLWorkbook
+'Close the new file and clean variable wb
+wb.Close
+Set wb = Nothing
+'If copy selection is active, deactivate it
+Application.CutCopyMode = False
+
+End Sub
